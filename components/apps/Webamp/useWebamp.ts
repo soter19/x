@@ -49,12 +49,13 @@ const useWebamp = (id: string): Webamp => {
     useSession();
   const { position } = windowState || {};
   const {
+    argument,
     linkElement,
     processes: { [id]: process },
     title,
   } = useProcesses();
   const { closing, componentWindow } = process || {};
-  const webampCI = useRef<WebampCI>();
+  const webampCI = useRef<WebampCI>(undefined);
   const {
     createPath,
     deletePath,
@@ -65,8 +66,8 @@ const useWebamp = (id: string): Webamp => {
     writeFile,
   } = useFileSystem();
   const { onDrop } = useFileDrop({ id });
-  const metadataProviderRef = useRef<number>();
-  const windowPositionDebounceRef = useRef<number>();
+  const metadataProviderRef = useRef(0);
+  const windowPositionDebounceRef = useRef(0);
   const subscriptions = useRef<(() => void)[]>([]);
   const onWillClose = useCallback(
     (cancel?: () => void): void => {
@@ -141,9 +142,27 @@ const useWebamp = (id: string): Webamp => {
             element?.addEventListener("dragover", haltEvent);
           });
 
-          if (process && !componentWindow && mainWindow) {
-            linkElement(id, "componentWindow", containerElement);
-            linkElement(id, "peekElement", mainWindow);
+          if (process) {
+            if (!componentWindow) {
+              linkElement(id, "componentWindow", containerElement);
+            }
+
+            if (mainWindow) {
+              linkElement(id, "peekElement", mainWindow);
+            }
+
+            argument(id, "play", () => webamp.play());
+            argument(id, "pause", () => webamp.pause());
+            argument(id, "paused", (callback?: (paused: boolean) => void) => {
+              if (callback) {
+                webamp._actionEmitter.on("PLAY", () => callback(false));
+                webamp._actionEmitter.on("PAUSE", () => callback(true));
+                webamp._actionEmitter.on("STOP", () => callback(true));
+                webamp._actionEmitter.on("IS_STOPPED", () => callback(true));
+              }
+
+              return webamp.getMediaStatus() === "PAUSED";
+            });
           }
 
           if (!initialSkin && !process.url?.endsWith(".wsz")) {
@@ -304,6 +323,7 @@ const useWebamp = (id: string): Webamp => {
       webampCI.current = webamp;
     },
     [
+      argument,
       componentWindow,
       createPath,
       deletePath,
