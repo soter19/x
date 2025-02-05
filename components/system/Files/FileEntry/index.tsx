@@ -182,7 +182,7 @@ const FileEntry: FC<FileEntryProps> = ({
     () => (isDirectory ? "" : getExtension(url)),
     [isDirectory, url]
   );
-  const isYTUrl = useMemo(() => isYouTubeUrl(url), [url]);
+  const isYTUrl = useMemo(() => Boolean(url) && isYouTubeUrl(url), [url]);
   const isDynamicIcon = useMemo(
     () =>
       IMAGE_FILE_EXTENSIONS.has(urlExt) ||
@@ -617,7 +617,8 @@ const FileEntry: FC<FileEntryProps> = ({
             />
           ) : (
             <figcaption>
-              {!isOnlyFocusedEntry || name.length === truncatedName.length
+              {!showColumn &&
+              (!isOnlyFocusedEntry || name.length === truncatedName.length)
                 ? truncatedName
                 : name}
             </figcaption>

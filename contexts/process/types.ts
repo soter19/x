@@ -48,12 +48,14 @@ type BaseProcessArguments = {
   dependantLibs?: string[];
   hideMaximizeButton?: boolean;
   hideMinimizeButton?: boolean;
+  hidePeek?: boolean;
   hideTaskbarEntry?: boolean;
   hideTitlebar?: boolean;
   hideTitlebarIcon?: boolean;
   initialRelativePosition?: RelativePosition;
   libs?: string[];
   lockAspectRatio?: boolean;
+  peekImage?: string;
   url?: string;
 };
 

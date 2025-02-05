@@ -2,6 +2,7 @@ import { useTheme } from "styled-components";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   formatWebLlmProgress,
+  responseTweaks,
   speakMessage,
 } from "components/system/Taskbar/AI/functions";
 import {
@@ -51,6 +52,7 @@ import { useSession } from "contexts/session";
 import { useWindowAI } from "hooks/useWindowAI";
 import { useFileSystem } from "contexts/fileSystem";
 import { readPdfText } from "components/apps/PDF/functions";
+import { useSnapshots } from "hooks/useSnapshots";
 
 type AIChatProps = {
   toggleAI: () => void;
@@ -88,7 +90,7 @@ const AIChat: FC<AIChatProps> = ({ toggleAI }) => {
       if (text) {
         setConversation((prevMessages) => {
           const newMessage = {
-            formattedText: formattedText || text,
+            formattedText: responseTweaks(formattedText || text),
             text,
             type,
             withCanvas,
@@ -134,10 +136,21 @@ const AIChat: FC<AIChatProps> = ({ toggleAI }) => {
       setCanceling(true);
     }
   }, [aiWorker, responding]);
+  const [hiddenThoughts, setHiddenThoughts] = useState<number[]>([]);
+  const toggleThought = useCallback((index: number) => {
+    setHiddenThoughts((prevHiddenThoughts) => {
+      if (prevHiddenThoughts.includes(index)) {
+        return prevHiddenThoughts.filter((i) => i !== index);
+      }
+
+      return [...prevHiddenThoughts, index];
+    });
+  }, []);
   const newTopic = useCallback(() => {
     stopResponse();
     sessionIdRef.current = 0;
     setConversation([]);
+    setHiddenThoughts([]);
     setFailedSession(false);
   }, [stopResponse]);
   const changeConvoStyle = useCallback(
@@ -167,7 +180,7 @@ const AIChat: FC<AIChatProps> = ({ toggleAI }) => {
     textArea.style.height = "auto";
     textArea.style.height = `${textArea.scrollHeight}px`;
   }, []);
-  const { createPath, exists, readFile, stat, updateFolder } = useFileSystem();
+  const { exists, readFile, stat } = useFileSystem();
   const canvasRefs = useRef<Record<number, HTMLCanvasElement>>({});
   const sendMessage = useCallback(async () => {
     const { text } = conversation[conversation.length - 1];
@@ -229,6 +242,7 @@ const AIChat: FC<AIChatProps> = ({ toggleAI }) => {
     readFile,
     stat,
   ]);
+  const { createSnapshot } = useSnapshots();
   const saveCanvasImage = useCallback(
     async (
       index: number,
@@ -236,21 +250,20 @@ const AIChat: FC<AIChatProps> = ({ toggleAI }) => {
       savePath: string
     ): Promise<string> => {
       const canvas = canvasRefs.current[index];
-      let newFileName = `${saveName}.png`;
 
       if (canvas) {
-        newFileName = await createPath(
-          newFileName,
-          savePath,
-          canvasToBuffer(canvas)
+        return createSnapshot(
+          `${saveName}.png`,
+          canvasToBuffer(canvas),
+          undefined,
+          false,
+          savePath
         );
-
-        updateFolder(savePath);
       }
 
-      return newFileName;
+      return "";
     },
-    [createPath, updateFolder]
+    [createSnapshot]
   );
 
   useEffect(() => {
@@ -414,17 +427,37 @@ const AIChat: FC<AIChatProps> = ({ toggleAI }) => {
           {conversation.map(
             ({ formattedText, type, text, withCanvas }, index) => (
               // eslint-disable-next-line react/no-array-index-key
-              <div key={`${text}-${index}`} className={type}>
+              <div key={index} className={type}>
                 {(index === 0 || conversation[index - 1].type !== type) && (
                   <div className="avatar">
                     {type === "user" ? <PersonIcon /> : <AIIcon />}
                     {type === "user" ? "You" : "AI"}
                   </div>
                 )}
+                {text.startsWith("<think>") && (
+                  <button
+                    className={clsx({
+                      thinking: true,
+                      "thinking-responding": responding,
+                    })}
+                    type="button"
+                    {...(!responding &&
+                      text.includes("</think>") && {
+                        onClick: () => toggleThought(index),
+                      })}
+                  >
+                    {text.includes("</think>") || !responding
+                      ? "Thoughts"
+                      : "Thinking..."}
+                  </button>
+                )}
                 <div
                   // eslint-disable-next-line react/no-danger
                   dangerouslySetInnerHTML={{ __html: formattedText }}
-                  className="message"
+                  className={clsx({
+                    "hide-think": hiddenThoughts.includes(index),
+                    message: true,
+                  })}
                 />
                 <div
                   className={clsx({

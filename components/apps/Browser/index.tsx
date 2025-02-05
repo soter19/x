@@ -1,5 +1,8 @@
 import { basename, join, resolve } from "path";
 import { useCallback, useEffect, useRef, useState } from "react";
+import useProxyMenu, {
+  type ProxyState,
+} from "components/apps/Browser/useProxyMenu";
 import { ADDRESS_INPUT_PROPS } from "components/apps/FileExplorer/AddressBar";
 import useHistoryMenu from "components/apps/Browser/useHistoryMenu";
 import useBookmarkMenu from "components/apps/Browser/useBookmarkMenu";
@@ -7,13 +10,19 @@ import {
   createDirectoryIndex,
   type DirectoryEntries,
 } from "components/apps/Browser/directoryIndex";
-import { Arrow, Refresh, Stop } from "components/apps/Browser/NavigationIcons";
+import {
+  Arrow,
+  Network,
+  Refresh,
+  Stop,
+} from "components/apps/Browser/NavigationIcons";
 import StyledBrowser from "components/apps/Browser/StyledBrowser";
 import {
   DINO_GAME,
   HOME_PAGE,
   LOCAL_HOST,
   NOT_FOUND,
+  PROXIES,
   bookmarks,
 } from "components/apps/Browser/config";
 import { type ComponentProcessProps } from "components/system/Apps/RenderComponent";
@@ -102,6 +111,8 @@ const Browser: FC<ComponentProcessProps> = ({ id }) => {
     position,
     moveHistory
   );
+  const [proxyState, setProxyState] = useState<ProxyState>("CORS");
+  const proxyMenu = useProxyMenu(proxyState, setProxyState);
   const bookmarkMenu = useBookmarkMenu();
   const setUrl = useCallback(
     async (addressInput: string): Promise<void> => {
@@ -302,7 +313,9 @@ const Browser: FC<ComponentProcessProps> = ({ id }) => {
             setSrcDoc(newSrcDoc);
             prependFileToTitle(newTitle);
           } else {
-            const addressUrl = processedUrl.href;
+            const addressUrl = PROXIES[proxyState]
+              ? await PROXIES[proxyState](processedUrl.href)
+              : processedUrl.href;
 
             changeIframeWindowLocation(addressUrl, contentWindow);
 
@@ -357,6 +370,7 @@ const Browser: FC<ComponentProcessProps> = ({ id }) => {
       initialTitle,
       open,
       prependFileToTitle,
+      proxyState,
       readFile,
       readdir,
       setIcon,
@@ -423,6 +437,14 @@ const Browser: FC<ComponentProcessProps> = ({ id }) => {
           }}
           {...ADDRESS_INPUT_PROPS}
         />
+        <Button
+          className="proxy"
+          onClick={proxyMenu.onContextMenuCapture}
+          onContextMenu={haltEvent}
+          {...label("Proxy settings")}
+        >
+          <Network />
+        </Button>
       </nav>
       <nav>
         {bookmarks.map(({ name, icon, url: bookmarkUrl }) => (
