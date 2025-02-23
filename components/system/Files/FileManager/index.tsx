@@ -97,6 +97,7 @@ const FileManager: FC<FileManagerProps> = ({
     useFolder(url, setRenaming, focusFunctions, {
       hideFolders,
       hideLoading,
+      isDesktop,
       skipFsWatcher,
       skipSorting,
     });
@@ -109,7 +110,8 @@ const FileManager: FC<FileManagerProps> = ({
     focusFunctions,
     fileManagerRef,
     isSelecting,
-    allowMovingDraggableEntries
+    allowMovingDraggableEntries,
+    isDesktop
   );
   const fileDrop = useFileDrop({
     callback: folderActions.newPath,
@@ -241,7 +243,7 @@ const FileManager: FC<FileManagerProps> = ({
             ref={fileManagerRef}
             $isEmptyFolder={isEmptyFolder}
             $scrollable={!hideScrolling}
-            onKeyDown={onKeyDown}
+            onKeyDownCapture={onKeyDown}
             {...(readOnly
               ? { onContextMenu: haltEvent }
               : {

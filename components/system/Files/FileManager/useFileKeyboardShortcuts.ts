@@ -11,8 +11,16 @@ import { type FileManagerViewNames } from "components/system/Files/Views";
 import { useFileSystem } from "contexts/fileSystem";
 import { useProcesses } from "contexts/process";
 import { useSession } from "contexts/session";
-import { PREVENT_SCROLL } from "utils/constants";
-import { haltEvent, sendMouseClick } from "utils/functions";
+import {
+  DESKTOP_PATH,
+  PREVENT_SCROLL,
+  SHORTCUT_EXTENSION,
+} from "utils/constants";
+import {
+  haltEvent,
+  saveUnpositionedDesktopIcons,
+  sendMouseClick,
+} from "utils/functions";
 
 type KeyboardShortcutEntry = (file?: string) => React.KeyboardEventHandler;
 
@@ -31,9 +39,9 @@ const useFileKeyboardShortcuts = (
   setView?: (newView: FileManagerViewNames) => void
 ): KeyboardShortcutEntry => {
   const { copyEntries, deletePath, moveEntries } = useFileSystem();
-  const { url: changeUrl } = useProcesses();
+  const { open, url: changeUrl } = useProcesses();
   const { openTransferDialog } = useTransferDialog();
-  const { foregroundId } = useSession();
+  const { foregroundId, setIconPositions } = useSession();
 
   useEffect(() => {
     const pasteHandler = (event: ClipboardEvent): void => {
@@ -58,7 +66,7 @@ const useFileKeyboardShortcuts = (
       (event) => {
         if (isStartMenu) return;
 
-        const { ctrlKey, key, target, shiftKey } = event;
+        const { altKey, ctrlKey, key, target, shiftKey } = event;
 
         if (shiftKey) {
           if (ctrlKey && !isDesktop) {
@@ -85,6 +93,23 @@ const useFileKeyboardShortcuts = (
           return;
         }
 
+        const onDelete = (): void => {
+          if (focusedEntries.length > 0) {
+            haltEvent(event);
+
+            if (url === DESKTOP_PATH) {
+              saveUnpositionedDesktopIcons(setIconPositions);
+            }
+
+            focusedEntries.forEach(async (entry) => {
+              const path = join(url, entry);
+
+              if (await deletePath(path)) updateFiles(undefined, path);
+            });
+            blurEntry();
+          }
+        };
+
         if (ctrlKey) {
           const lKey = key.toLowerCase();
 
@@ -103,16 +128,33 @@ const useFileKeyboardShortcuts = (
               haltEvent(event);
               copyEntries(focusedEntries.map((entry) => join(url, entry)));
               break;
+            case "d":
+              onDelete();
+              break;
+            case "r":
+              haltEvent(event);
+              updateFiles();
+              break;
             case "x":
               haltEvent(event);
               moveEntries(focusedEntries.map((entry) => join(url, entry)));
               break;
             case "v":
-              haltEvent(event);
+              event.stopPropagation();
               if (target instanceof HTMLOListElement) {
                 pasteToFolder();
               }
               break;
+          }
+        } else if (altKey) {
+          const lKey = key.toLowerCase();
+
+          if (lKey === "n") {
+            haltEvent(event);
+            open("FileExplorer", { url });
+          } else if (key === "Enter" && focusedEntries.length > 0) {
+            haltEvent(event);
+            open("Properties", { url: join(url, focusedEntries[0]) });
           }
         } else {
           switch (key) {
@@ -129,15 +171,7 @@ const useFileKeyboardShortcuts = (
               }
               break;
             case "Delete":
-              if (focusedEntries.length > 0) {
-                haltEvent(event);
-                focusedEntries.forEach(async (entry) => {
-                  const path = join(url, entry);
-
-                  if (await deletePath(path)) updateFiles(undefined, path);
-                });
-                blurEntry();
-              }
+              onDelete();
               break;
             case "Backspace":
               if (id) {
@@ -243,7 +277,9 @@ const useFileKeyboardShortcuts = (
                   blurEntry();
                   focusEntry(focusOnEntry);
                   fileManagerRef.current
-                    ?.querySelector(`button[aria-label='${focusOnEntry}']`)
+                    ?.querySelector(
+                      `button[aria-label='${focusOnEntry.replace(SHORTCUT_EXTENSION, "")}']`
+                    )
                     ?.scrollIntoView();
                 }
               }
@@ -263,7 +299,9 @@ const useFileKeyboardShortcuts = (
       isDesktop,
       isStartMenu,
       moveEntries,
+      open,
       pasteToFolder,
+      setIconPositions,
       setRenaming,
       setView,
       updateFiles,

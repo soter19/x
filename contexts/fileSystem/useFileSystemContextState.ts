@@ -103,6 +103,7 @@ type FileSystemContextState = AsyncFS & {
   pasteList: FilePasteOperations;
   removeFsWatcher: (folder: string, updateFiles: UpdateFiles) => void;
   rootFs?: RootFileSystem;
+  setPasteList: React.Dispatch<React.SetStateAction<FilePasteOperations>>;
   unMapFs: (directory: string, hasNoHandle?: boolean) => Promise<void>;
   unMountFs: (url: string) => void;
   updateFolder: (
@@ -354,11 +355,13 @@ const useFileSystemContextState = (): FileSystemContextState => {
                       relativePathComponents[relativePathComponents.length - 1];
                   }
 
-                  updateFolder(
-                    join(mappedPath, ...relativePathComponents.slice(0, -1)),
-                    newFile,
-                    oldFile
-                  );
+                  if (newFile || oldFile) {
+                    updateFolder(
+                      join(mappedPath, ...relativePathComponents.slice(0, -1)),
+                      newFile,
+                      oldFile
+                    );
+                  }
                 });
 
                 observer.observe(handle, { recursive: true });
@@ -537,6 +540,8 @@ const useFileSystemContextState = (): FileSystemContextState => {
       iteration = 0,
       overwrite = false
     ): Promise<string> => {
+      if (!name.trim()) return "";
+
       const isInternal = !buffer && isAbsolute(name);
       const baseName = isInternal ? basename(name) : name;
       const uniqueName = iteration
@@ -646,6 +651,7 @@ const useFileSystemContextState = (): FileSystemContextState => {
     moveEntries,
     pasteList,
     removeFsWatcher,
+    setPasteList,
     unMapFs,
     unMountFs,
     updateFolder,

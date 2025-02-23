@@ -16,6 +16,7 @@ import StyledFigure from "components/system/Files/FileEntry/StyledFigure";
 import SubIcons from "components/system/Files/FileEntry/SubIcons";
 import {
   getCachedIconUrl,
+  getCachedShortcut,
   getDateModified,
   getFileType,
   getTextWrapData,
@@ -57,12 +58,14 @@ import {
 import {
   blobToBase64,
   bufferToUrl,
+  fetchBlob,
   getExtension,
   getFormattedSize,
   getHtmlToImage,
   hasFinePointer,
   isCanvasDrawn,
   isYouTubeUrl,
+  preloadImage,
 } from "utils/functions";
 import { spotlightEffect } from "utils/spotlightEffect";
 import { useIsVisible } from "hooks/useIsVisible";
@@ -170,6 +173,7 @@ const FileEntry: FC<FileEntryProps> = ({
     fs,
     mkdirRecursive,
     pasteList,
+    readdir,
     stat,
     updateFolder,
     writeFile,
@@ -313,6 +317,17 @@ const FileEntry: FC<FileEntryProps> = ({
         : 0,
     [columns, showColumn, sizes.fileManager.detailsStartPadding]
   );
+  const preloadedImages = useRef(false);
+  const preloadImages = useCallback(() => {
+    if (preloadedImages.current) return;
+    preloadedImages.current = true;
+
+    readdir(path).then((files) =>
+      files
+        .map((file) => getCachedShortcut(join(path, file)) || {})
+        .forEach(({ icon: image }) => image && preloadImage(image))
+    );
+  }, [path, readdir]);
 
   useEffect(() => {
     if (!isLoadingFileManager && isVisible && !isIconCached.current) {
@@ -355,7 +370,7 @@ const FileEntry: FC<FileEntryProps> = ({
                   generatedIcon = iconRef.current.currentSrc;
                 } else if (iconRef.current.currentSrc.startsWith("blob:")) {
                   generatedIcon = await blobToBase64(
-                    await (await fetch(iconRef.current.currentSrc)).blob()
+                    await fetchBlob(iconRef.current.currentSrc)
                   );
                 } else {
                   const { clientHeight, clientWidth } = iconRef.current;
@@ -551,7 +566,10 @@ const FileEntry: FC<FileEntryProps> = ({
       <Button
         ref={buttonRef}
         aria-label={name}
-        onMouseOver={() => createTooltip().then(setTooltip)}
+        onMouseOver={() => {
+          if (listView && isDirectory) preloadImages();
+          createTooltip().then(setTooltip);
+        }}
         title={tooltip}
         {...(listView && { ...LIST_VIEW_ANIMATION, as: motion.button })}
         {...useDoubleClick(doubleClickHandler, listView)}
