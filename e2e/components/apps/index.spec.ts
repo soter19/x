@@ -1,5 +1,6 @@
 import { test } from "@playwright/test";
 import directory from "contexts/process/directory";
+import { TEST_APP_URL } from "e2e/constants";
 import {
   captureConsoleLogs,
   disableWallpaper,
@@ -7,8 +8,9 @@ import {
   taskbarEntriesAreVisible,
   windowsAreVisible,
 } from "e2e/functions";
+import { TRANSITIONS_IN_MILLISECONDS } from "utils/constants";
 
-test.beforeEach(captureConsoleLogs);
+test.beforeEach(captureConsoleLogs("apps"));
 test.beforeEach(disableWallpaper);
 
 test.describe("can open app", () => {
@@ -24,7 +26,16 @@ test.describe("can open app", () => {
         "no app elements visible"
       );
 
-      await loadApp({ page }, { app });
+      const queryParams: Record<string, string> = { app };
+      const url = TEST_APP_URL[app];
+
+      if (url) queryParams.url = url;
+
+      await loadApp({ page }, queryParams);
+
+      // NOTE: Some apps fully load AFTER the window has transitioned
+      // eslint-disable-next-line playwright/no-wait-for-timeout
+      await page.waitForTimeout(TRANSITIONS_IN_MILLISECONDS.WINDOW * 2);
 
       if (hasWindow) await windowsAreVisible({ page });
       if (!hideTaskbarEntry) await taskbarEntriesAreVisible({ page });
