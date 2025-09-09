@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { memo, useCallback } from "react";
 import { type ComponentProcessProps } from "components/system/Apps/RenderComponent";
 import StyledPeekViewport from "components/system/Taskbar/TaskbarEntry/Peek/StyledPeekViewport";
 import RndWindow from "components/system/Window/RndWindow";
@@ -14,8 +14,13 @@ const Window: FC<ComponentProcessProps> = ({ children, id }) => {
     linkElement,
     processes: { [id]: process },
   } = useProcesses();
-  const { backgroundColor, Component, hideTitlebar, peekElement } =
-    process || {};
+  const {
+    backgroundBlur,
+    backgroundColor,
+    Component,
+    hideTitlebar,
+    peekElement,
+  } = process || {};
   const { foregroundId } = useSession();
   const isForeground = id === foregroundId;
   const { zIndex, ...focusableProps } = useFocusable(id);
@@ -32,6 +37,7 @@ const Window: FC<ComponentProcessProps> = ({ children, id }) => {
   return (
     <RndWindow id={id} zIndex={zIndex}>
       <StyledWindow
+        $backgroundBlur={backgroundBlur}
         $backgroundColor={backgroundColor}
         $isForeground={isForeground}
         {...focusableProps}
@@ -46,4 +52,4 @@ const Window: FC<ComponentProcessProps> = ({ children, id }) => {
   );
 };
 
-export default Window;
+export default memo(Window);

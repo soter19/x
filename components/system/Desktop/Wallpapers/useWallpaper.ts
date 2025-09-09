@@ -16,7 +16,6 @@ import {
   type WallpaperMessage,
   type WallpaperConfig,
 } from "components/system/Desktop/Wallpapers/types";
-import { config as vantaConfig } from "components/system/Desktop/Wallpapers/vantaWaves/config";
 import { useFileSystem } from "contexts/fileSystem";
 import { useSession } from "contexts/session";
 import useWorker from "hooks/useWorker";
@@ -26,6 +25,7 @@ import {
   IMAGE_FILE_EXTENSIONS,
   MILLISECONDS_IN_DAY,
   MILLISECONDS_IN_MINUTE,
+  NATIVE_IMAGE_FORMATS,
   PICTURES_FOLDER,
   PROMPT_FILE,
   SLIDESHOW_FILE,
@@ -63,9 +63,7 @@ const useWallpaper = (
   );
   const vantaWireframe = wallpaperImage === "VANTA WIREFRAME";
   const wallpaperWorker = useWorker<void>(
-    WALLPAPER_WORKERS[wallpaperName],
-    undefined,
-    vantaWireframe ? "Wireframe" : ""
+    sessionLoaded ? WALLPAPER_WORKERS[wallpaperName] : undefined
   );
   const wallpaperTimerRef = useRef(0);
   const failedOffscreenContext = useRef(false);
@@ -107,12 +105,13 @@ const useWallpaper = (
 
       if (wallpaperName === "VANTA") {
         config = {
-          ...vantaConfig,
-          waveSpeed:
-            vantaConfig.waveSpeed *
-            (prefersReducedMotion ? REDUCED_MOTION_PERCENT : 1),
+          material: {
+            options: {
+              wireframe: vantaWireframe || !isTopWindow,
+            },
+          },
+          waveSpeed: prefersReducedMotion ? REDUCED_MOTION_PERCENT : 1,
         };
-        vantaConfig.material.options.wireframe = vantaWireframe || !isTopWindow;
       } else if (wallpaperImage.startsWith("MATRIX")) {
         config = {
           animationSpeed: prefersReducedMotion ? REDUCED_MOTION_PERCENT : 1,
@@ -272,14 +271,14 @@ const useWallpaper = (
       cleanUpBufferUrl(currentWallpaperUrl);
     }
 
-    resetWallpaper();
-
     let wallpaperUrl = "";
     let fallbackBackground = "";
     let newWallpaperFit = wallpaperFit;
     const isSlideshow = wallpaperName === "SLIDESHOW";
 
     if (isSlideshow) {
+      resetWallpaper();
+
       const slideshowFilePath = `${PICTURES_FOLDER}/${SLIDESHOW_FILE}`;
 
       if (!(await exists(slideshowFilePath))) {
@@ -336,12 +335,17 @@ const useWallpaper = (
       // eslint-disable-next-line unicorn/no-unreadable-array-destructuring
       const [, , currentDate] = wallpaperImage.split(" ");
       const [month, , day, , year] = new Intl.DateTimeFormat(DEFAULT_LOCALE, {
+        day: "2-digit",
+        month: "2-digit",
         timeZone: "US/Eastern",
+        year: "numeric",
       })
         .formatToParts(Date.now())
         .map(({ value }) => value);
 
       if (currentDate === `${year}-${month}-${day}`) return;
+
+      resetWallpaper();
 
       const {
         date = "",
@@ -374,14 +378,19 @@ const useWallpaper = (
         }
       }
     } else if (await exists(wallpaperImage)) {
-      const { decodeImageToBuffer } = await import("utils/imageDecoder");
-      const fileData = await readFile(wallpaperImage);
-      const imageBuffer = await decodeImageToBuffer(
-        getExtension(wallpaperImage),
-        fileData
-      );
+      resetWallpaper();
 
-      wallpaperUrl = bufferToUrl(imageBuffer || fileData);
+      let fileData = await readFile(wallpaperImage);
+      const imgExt = getExtension(wallpaperImage);
+
+      if (!NATIVE_IMAGE_FORMATS.has(imgExt)) {
+        const { decodeImageToBuffer } = await import("utils/imageDecoder");
+        const decodedData = await decodeImageToBuffer(imgExt, fileData);
+
+        if (decodedData) fileData = decodedData;
+      }
+
+      wallpaperUrl = bufferToUrl(fileData);
     }
 
     if (wallpaperUrl) {
@@ -426,6 +435,10 @@ const useWallpaper = (
           const isTopWindow = window === window.top;
           const isAfterNextBackground = isBeforeBg();
 
+          document.documentElement.style.setProperty(
+            "--background-transition-timing",
+            isSlideshow ? "1.25s" : "0s"
+          );
           document.documentElement.style.setProperty(
             `--${isAfterNextBackground ? "after" : "before"}-background`,
             `url(${CSS.escape(
@@ -494,6 +507,7 @@ const useWallpaper = (
     if (sessionLoaded) {
       if (wallpaperTimerRef.current) {
         window.clearTimeout(wallpaperTimerRef.current);
+        wallpaperTimerRef.current = 0;
       }
 
       if (wallpaperName && !WALLPAPER_WORKER_NAMES.includes(wallpaperName)) {

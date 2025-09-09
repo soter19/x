@@ -23,6 +23,7 @@ test.beforeEach(captureConsoleLogs());
 test("has background", loadAppWithCanvas);
 
 test("can change background", async ({ headless, browserName, page }) => {
+  await disableWallpaper({ page });
   await loadAppWithCanvas({ browserName, headless, page });
   await sessionIsWriteable({ page });
 
@@ -48,7 +49,7 @@ test("can change background", async ({ headless, browserName, page }) => {
 test.describe("can set background", () => {
   test.beforeEach(disableWallpaper);
   test.beforeEach(async ({ page }) =>
-    loadApp({ page }, { url: "/System/Icons/48x48" })
+    loadApp({ url: "/System/Icons/48x48" })({ page })
   );
   test.beforeEach(windowsAreVisible);
   test.beforeEach(fileExplorerEntriesAreVisible);
